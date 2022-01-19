@@ -126,199 +126,204 @@ func (ci *CodecInfo) IsValid() error {
 	return nil
 }
 
-// 返回map[string]string key: ffmpeg命令 value:参数值
-func Transform(codecProfile CodecProfile, watermarkProfile WatermarkProfile) (map[string]string, error) {
-	var err error
-	codecargs := make(map[string]string)
-
+func TransformVideo(codecProfile CodecProfile) (args map[string]string, err error) {
 	if codecProfile.VideoLongSide < 0 || codecProfile.VideoShortSide < 0 || codecProfile.VideoWidth < 0 || codecProfile.VideoHigh < 0 ||
 		codecProfile.VideoBitRate < 0 || codecProfile.VideoFrameRate < 0 || codecProfile.KeyframeInterval < 0 ||
-		codecProfile.AudioVideoType < 0 || codecProfile.Ac < 0 || codecProfile.Ab < 0 || codecProfile.Ar < 0 ||
 		codecProfile.BufSize < 0 || codecProfile.MaxRate < 0 || codecProfile.MinRate < 0 || codecProfile.Crf < 0 {
-		err = fmt.Errorf("invalid codecProfile")
+		err = fmt.Errorf("invalid video codecProfile")
 		return nil, err
 	}
 
-	if watermarkProfile.ImageHigh < 0 || watermarkProfile.ImageWidth < 0 || watermarkProfile.X < 0 || watermarkProfile.X > 1 ||
-		watermarkProfile.Y < 0 || watermarkProfile.Y > 1 || watermarkProfile.WidthProportion < 0 || watermarkProfile.WidthProportion > 1 {
-		err = fmt.Errorf("invalid watermarkProfile")
-		return nil, err
-	}
+	videocodecargs := make(map[string]string)
 
-	videoenable := true
-	audioenable := true
-	//AudioVideoType 音视频输出 0.同时输出音视频，1.只输出视频，2.只输出音频，默认为0
-	if codecProfile.AudioVideoType == 1 {
-		// 去除音频
-		audioenable = false
-		codecargs["-an"] = ""
-	} else if codecProfile.AudioVideoType == 2 {
-		// 去除视频
-		videoenable = false
-		codecargs["-vn"] = ""
+	// 设置视频编码器
+	vcodec := "copy"
+	if codecProfile.Vcodec != "" {
+		vcodec = codecProfile.Vcodec
+	}
+	videocodecargs["-vcodec"] = vcodec
+
+	useside := true
+	if codecProfile.VideoLongSide == 0 && codecProfile.VideoShortSide == 0 {
+		useside = false
 	}
 
 	scale := ""
-	if videoenable {
-		// 设置视频编码器
-		vcodec := "copy"
-		if codecProfile.Vcodec != "" {
-			vcodec = codecProfile.Vcodec
+	if useside { // 使用长短边
+		longside := ""
+		shortside := ""
+		uselongside := false
+		useshortside := false
+		if codecProfile.VideoLongSide > 0 {
+			if codecProfile.VideoShortSide > 0 { //当长短边都指定时，需要按原视频长短边，强制缩放至目标分辨率
+				longside = strconv.Itoa(codecProfile.VideoLongSide)
+				shortside = strconv.Itoa(codecProfile.VideoShortSide)
+			} else { //当只有长边指定时，以这条边为基准，按原视频比例自适应
+				uselongside = true
+				longside = strconv.Itoa(codecProfile.VideoLongSide)
+			}
+		} else {
+			if codecProfile.VideoShortSide > 0 { //当只有短边指定时，以这条边为基准，按原视频比例自适应
+				useshortside = true
+				shortside = strconv.Itoa(codecProfile.VideoShortSide)
+			}
 		}
-		codecargs["-vcodec"] = vcodec
 
-		useside := true
-		if codecProfile.VideoLongSide == 0 && codecProfile.VideoShortSide == 0 {
-			useside = false
+		if uselongside { //若指定视频长边大于原视频长边，则使用原视频长边进行转码
+			scale = fmt.Sprintf("scale='if(gt(%s, max(iw\\, ih)), max(iw\\, ih), 2*floor(%s/max(iw\\, ih)*iw/2))':'if(gt(%s, max(iw\\, ih)), min(iw\\, ih), 2*floor(%s/max(iw\\, ih)*ih/2))'", longside, longside, longside, longside)
+		} else if useshortside { //若指定视频短边大于原视频短边，则使用原视频短边进行转码
+			scale = fmt.Sprintf("scale='if(gt(%s, min(iw\\, ih)), max(iw\\, ih), 2*floor(%s/min(iw\\, ih)*iw/2))':'if(gt(%s, min(iw\\, ih)), max(iw\\, ih), 2*floor(%s/min(iw\\, ih)*ih/2))'", shortside, shortside, shortside, shortside)
+		} else {
+			scale = fmt.Sprintf("scale='if(gt(2*floor(%s*max(iw\\,ih)/(min(iw\\,ih)*2))\\,%s)\\,2*floor(%s*(iw/2)/max(iw\\,ih))\\,2*floor(%s*(iw/2)/min(iw\\,ih)))':'if(gt(2*floor(%s*max(iw\\,ih)/(min(iw\\,ih)*2))\\,%s)\\,2*floor(%s*(ih/2)/max(iw\\,ih))\\,2*floor(%s*(ih/2)/min(iw\\,ih)))'", shortside, longside, longside, shortside, shortside, longside, longside, shortside)
 		}
+	} else { // 使用分辨率
+		width := ""
+		high := ""
 
-		if useside { // 使用长短边
-			longside := ""
-			shortside := ""
-			uselongside := false
-			useshortside := false
-			if codecProfile.VideoLongSide > 0 {
-				if codecProfile.VideoShortSide > 0 { //当长短边都指定时，需要按原视频长短边，强制缩放至目标分辨率
-					longside = strconv.Itoa(codecProfile.VideoLongSide)
-					shortside = strconv.Itoa(codecProfile.VideoShortSide)
-				} else { //当只有长边指定时，以这条边为基准，按原视频比例自适应
-					uselongside = true
-					longside = strconv.Itoa(codecProfile.VideoLongSide)
-				}
+		if codecProfile.VideoWidth > 0 {
+			width = strconv.Itoa(codecProfile.VideoWidth)
+			if codecProfile.VideoHigh > 0 {
+				high = strconv.Itoa(codecProfile.VideoHigh)
 			} else {
-				if codecProfile.VideoShortSide > 0 { //当只有短边指定时，以这条边为基准，按原视频比例自适应
-					useshortside = true
-					shortside = strconv.Itoa(codecProfile.VideoShortSide)
-				}
+				high = fmt.Sprintf("%d*ih/iw", codecProfile.VideoWidth)
 			}
-
-			if uselongside { //若指定视频长边大于原视频长边，则使用原视频长边进行转码
-				scale = fmt.Sprintf("scale='if(gt(%s, max(iw\\, ih)), max(iw\\, ih), 2*floor(%s/max(iw\\, ih)*iw/2))':'if(gt(%s, max(iw\\, ih)), min(iw\\, ih), 2*floor(%s/max(iw\\, ih)*ih/2))'", longside, longside, longside, longside)
-			} else if useshortside { //若指定视频短边大于原视频短边，则使用原视频短边进行转码
-				scale = fmt.Sprintf("scale='if(gt(%s, min(iw\\, ih)), max(iw\\, ih), 2*floor(%s/min(iw\\, ih)*iw/2))':'if(gt(%s, min(iw\\, ih)), max(iw\\, ih), 2*floor(%s/min(iw\\, ih)*ih/2))'", shortside, shortside, shortside, shortside)
-			} else {
-				scale = fmt.Sprintf("scale='if(gt(2*floor(%s*max(iw\\,ih)/(min(iw\\,ih)*2))\\,%s)\\,2*floor(%s*(iw/2)/max(iw\\,ih))\\,2*floor(%s*(iw/2)/min(iw\\,ih)))':'if(gt(2*floor(%s*max(iw\\,ih)/(min(iw\\,ih)*2))\\,%s)\\,2*floor(%s*(ih/2)/max(iw\\,ih))\\,2*floor(%s*(ih/2)/min(iw\\,ih)))'", shortside, longside, longside, shortside, shortside, longside, longside, shortside)
-			}
-		} else { // 使用分辨率
-			width := ""
-			high := ""
-
-			if codecProfile.VideoWidth > 0 {
-				width = strconv.Itoa(codecProfile.VideoWidth)
-				if codecProfile.VideoHigh > 0 {
-					high = strconv.Itoa(codecProfile.VideoHigh)
-				} else {
-					high = fmt.Sprintf("%d*ih/iw", codecProfile.VideoWidth)
-				}
-			} else {
-				if codecProfile.VideoHigh > 0 {
-					width = fmt.Sprintf("%d*iw/ih", codecProfile.VideoHigh)
-					high = strconv.Itoa(codecProfile.VideoHigh)
-				}
-			}
-
-			if width != "" && high != "" {
-				scale = fmt.Sprintf("scale='if(gt(%s,iw), iw\\, %s)':'if(gt(%s,ih)\\, ih\\, %s)'", width, width, high, high)
+		} else {
+			if codecProfile.VideoHigh > 0 {
+				width = fmt.Sprintf("%d*iw/ih", codecProfile.VideoHigh)
+				high = strconv.Itoa(codecProfile.VideoHigh)
 			}
 		}
 
-		// 设置视频码率
-		if codecProfile.VideoBitRate > 0 {
-			codecargs["-b:v"] = fmt.Sprintf("%dk", codecProfile.VideoBitRate)
-		}
-
-		// 设置视频帧率
-		if codecProfile.VideoFrameRate > 0 {
-			codecargs["-r"] = strconv.Itoa(codecProfile.VideoFrameRate)
-		}
-
-		// 设置关键帧间隔
-		if codecProfile.KeyframeInterval > 0 {
-			codecargs["-force_key_frames"] = fmt.Sprintf("\"expr:gte(t,n_forced*%d)\"", codecProfile.KeyframeInterval)
-		}
-
-		// 设置去除B帧标志
-		if codecProfile.RemoveBFrame {
-			bframe := "\"bframes=0\""
-			if codecProfile.Vcodec == "libx264" {
-				codecargs["-x264opts"] = bframe
-			} else if codecProfile.Vcodec == "libx265" {
-				codecargs["-x265-params"] = bframe
-			}
-		}
-
-		// 设置保留SEI
-		if codecProfile.KeepSei {
-			// FIXME:暂时忽略
-		}
-
-		// 设置视频码率控制缓冲区大小
-		if codecProfile.BufSize > 0 {
-			codecargs["-bufsize"] = fmt.Sprintf("%dk", codecProfile.BufSize)
-		}
-
-		// 设置最大视频码率容忍度
-		if codecProfile.MaxRate > 0 {
-			codecargs["-maxrate"] = fmt.Sprintf("%dk", codecProfile.MaxRate)
-		}
-
-		// 设置最小视频码率容忍度
-		if codecProfile.MinRate > 0 {
-			codecargs["-minrate"] = fmt.Sprintf("%dk", codecProfile.MinRate)
-		}
-
-		// 设置像素格式
-		if codecProfile.PixFmt != "" {
-			codecargs["-pix_fmt"] = codecProfile.PixFmt
-		}
-
-		// 设置Crf
-		if codecProfile.Crf > 0 {
-			codecargs["-crf"] = strconv.Itoa(codecProfile.Crf)
-		}
-
-		// 设置Preset
-		if codecProfile.Preset != "" {
-			codecargs["-preset"] = codecProfile.Preset
+		if width != "" && high != "" {
+			scale = fmt.Sprintf("scale='if(gt(%s,iw), iw\\, %s)':'if(gt(%s,ih)\\, ih\\, %s)'", width, width, high, high)
 		}
 	}
 
-	if audioenable {
-		// 设置音频编码器
-		acodec := "copy"
-		if codecProfile.Acodec != "" {
-			acodec = codecProfile.Acodec
+	if scale != "" {
+		if videocodecargs["-vcodec"] == "copy" { // 修改分辨率需要编码器重新编码
+			err = fmt.Errorf("invalid Vcodec")
+			return nil, err
 		}
-		codecargs["-acodec"] = acodec
+		videocodecargs["-vf"] = scale
+	}
 
-		// 设置音频声道数
-		if codecProfile.Ac > 0 {
-			codecargs["-ac"] = strconv.Itoa(codecProfile.Ac)
-		}
+	// 设置视频码率
+	if codecProfile.VideoBitRate > 0 {
+		videocodecargs["-b:v"] = fmt.Sprintf("%dk", codecProfile.VideoBitRate)
+	}
 
-		// 设置音频码率
-		if codecProfile.Ab > 0 {
-			codecargs["-b:a"] = fmt.Sprintf("%dk", codecProfile.Ab)
-		}
+	// 设置视频帧率
+	if codecProfile.VideoFrameRate > 0 {
+		videocodecargs["-r"] = strconv.Itoa(codecProfile.VideoFrameRate)
+	}
 
-		// 设置音频采样率
-		if codecProfile.Ar > 0 {
-			codecargs["-ar"] = strconv.Itoa(codecProfile.Ar)
+	// 设置关键帧间隔
+	if codecProfile.KeyframeInterval > 0 {
+		videocodecargs["-force_key_frames"] = fmt.Sprintf("\"expr:gte(t,n_forced*%d)\"", codecProfile.KeyframeInterval)
+	}
+
+	// 设置去除B帧标志
+	if codecProfile.RemoveBFrame {
+		bframe := "\"bframes=0\""
+		if codecProfile.Vcodec == "libx264" {
+			videocodecargs["-x264opts"] = bframe
+		} else if codecProfile.Vcodec == "libx265" {
+			videocodecargs["-x265-params"] = bframe
 		}
 	}
 
+	// 设置保留SEI
+	if codecProfile.KeepSei {
+		// FIXME:暂时忽略
+	}
+
+	// 设置视频码率控制缓冲区大小
+	if codecProfile.BufSize > 0 {
+		videocodecargs["-bufsize"] = fmt.Sprintf("%dk", codecProfile.BufSize)
+	}
+
+	// 设置最大视频码率容忍度
+	if codecProfile.MaxRate > 0 {
+		videocodecargs["-maxrate"] = fmt.Sprintf("%dk", codecProfile.MaxRate)
+	}
+
+	// 设置最小视频码率容忍度
+	if codecProfile.MinRate > 0 {
+		videocodecargs["-minrate"] = fmt.Sprintf("%dk", codecProfile.MinRate)
+	}
+
+	// 设置像素格式
+	if codecProfile.PixFmt != "" {
+		videocodecargs["-pix_fmt"] = codecProfile.PixFmt
+	}
+
+	// 设置Crf
+	if codecProfile.Crf > 0 {
+		videocodecargs["-crf"] = strconv.Itoa(codecProfile.Crf)
+	}
+
+	// 设置Preset
+	if codecProfile.Preset != "" {
+		videocodecargs["-preset"] = codecProfile.Preset
+	}
+
+	return videocodecargs, nil
+}
+
+func TransformAudio(codecProfile CodecProfile) (args map[string]string, err error) {
+	if codecProfile.Ac < 0 || codecProfile.Ab < 0 || codecProfile.Ar < 0 {
+		err = fmt.Errorf("invalid audio codecProfile")
+		return nil, err
+	}
+
+	audiocodecargs := make(map[string]string)
+
+	// 设置音频编码器
+	acodec := "copy"
+	if codecProfile.Acodec != "" {
+		acodec = codecProfile.Acodec
+	}
+	audiocodecargs["-acodec"] = acodec
+
+	// 设置音频声道数
+	if codecProfile.Ac > 0 {
+		audiocodecargs["-ac"] = strconv.Itoa(codecProfile.Ac)
+	}
+
+	// 设置音频码率
+	if codecProfile.Ab > 0 {
+		audiocodecargs["-b:a"] = fmt.Sprintf("%dk", codecProfile.Ab)
+	}
+
+	// 设置音频采样率
+	if codecProfile.Ar > 0 {
+		audiocodecargs["-ar"] = strconv.Itoa(codecProfile.Ar)
+	}
+
+	return audiocodecargs, nil
+}
+
+func Transformwatermark(watermarkProfile WatermarkProfile, videoargs map[string]string) (args map[string]string, err error) {
+	watercodecargs := make(map[string]string)
 	vf := ""
+	scale := ""
+
+	// 取出视频的分辨率用于后期组装-vf
+	if _, ok := videoargs["-vf"]; ok {
+		scale = videoargs["-vf"]
+	}
+
 	// 设置水印信息
 	if watermarkProfile.Image != "" {
-		if watermarkProfile.ImageWidth == 0 || watermarkProfile.ImageHigh == 0 {
-			// 水印图片原始宽高需要大于0，不然无法计算水印目标宽高信息
-			err = fmt.Errorf("invalid water imagewidth:%f or imagehight:%f", watermarkProfile.ImageWidth, watermarkProfile.ImageHigh)
+		if videoargs["-vcodec"] == "copy" {
+			// 水印功能需要编码器重新编码
+			err = fmt.Errorf("invalid Vcodec")
 			return nil, err
 		}
 
-		if codecargs["-vcodec"] == "copy" {
-			// 水印功能需要编码器重新编码
-			err = fmt.Errorf("invalid water Vcodec")
+		if watermarkProfile.ImageHigh <= 0 || watermarkProfile.ImageWidth <= 0 || watermarkProfile.X < 0 || watermarkProfile.X > 1 ||
+			watermarkProfile.Y < 0 || watermarkProfile.Y > 1 || watermarkProfile.WidthProportion < 0 || watermarkProfile.WidthProportion > 1 {
+			err = fmt.Errorf("invalid watermarkProfile")
 			return nil, err
 		}
 
@@ -331,19 +336,71 @@ func Transform(codecProfile CodecProfile, watermarkProfile WatermarkProfile) (ma
 		// 设置水印x和y位置
 		overlay := fmt.Sprintf("[ino][wm]overlay=%f*main_w:%f*main_h", watermarkProfile.X, watermarkProfile.Y)
 
-		if scale != "" { // 设置水印和分辨率
+		if scale != "" { // 设置水印和视频分辨率
 			vf = fmt.Sprintf("\"%s%s%s[wmimage];[wmimage]%s[out]\"", imagename, scale2ref, overlay, scale)
 		} else { //设置水印
 			vf = fmt.Sprintf("\"%s%s%s[out]\"", imagename, scale2ref, overlay)
 		}
 	} else {
-		if scale != "" { // 设置分辨率
+		if scale != "" {
 			vf = fmt.Sprintf("\"%s\"", scale)
 		}
 	}
 
 	if vf != "" {
-		codecargs["-vf"] = vf
+		watercodecargs["-vf"] = vf
+	}
+
+	return watercodecargs, nil
+}
+
+func Transform(codecProfile CodecProfile, watermarkProfile WatermarkProfile) (map[string]string, error) {
+	var err error
+	codecargs := make(map[string]string)
+	videocodecargs := make(map[string]string)
+	audiocodecargs := make(map[string]string)
+	watercodecargs := make(map[string]string)
+
+	switch codecProfile.AudioVideoType {
+	case 0: //输出音视频
+		if videocodecargs, err = TransformVideo(codecProfile); err != nil {
+			return nil, err
+		}
+
+		if audiocodecargs, err = TransformAudio(codecProfile); err != nil {
+			return nil, err
+		}
+	case 1: // 只输出视频
+		// 去除音频
+		codecargs["-an"] = ""
+		if videocodecargs, err = TransformVideo(codecProfile); err != nil {
+			return nil, err
+		}
+	case 2: //只输出音频
+		// 去除视频
+		codecargs["-vn"] = ""
+		if audiocodecargs, err = TransformAudio(codecProfile); err != nil {
+			return nil, err
+		}
+	default:
+		err = fmt.Errorf("invalid AudioVideoType")
+		return nil, err
+	}
+
+	if watercodecargs, err = Transformwatermark(watermarkProfile, videocodecargs); err != nil {
+		return nil, err
+	}
+
+	for key, value := range videocodecargs {
+		codecargs[key] = value
+	}
+
+	for key, value := range audiocodecargs {
+		codecargs[key] = value
+	}
+
+	for key, value := range watercodecargs {
+		codecargs[key] = value
 	}
 
 	return codecargs, nil
