@@ -155,7 +155,7 @@ func TestTransform(t *testing.T) {
 		at.Equal(profile["-minrate"], "100k")
 		at.Equal(profile["-crf"], "30")
 		at.Equal(profile["-vn"], "")
-		at.Equal(profile["-vf"], "\"scale='if(gt(250, max(iw\\, ih)), max(iw\\, ih), 2*floor(250/max(iw\\, ih)*iw/2))':'if(gt(250, max(iw\\, ih)), min(iw\\, ih), 2*floor(250/max(iw\\, ih)*ih/2))'\"")
+		at.Equal(profile["-vf"], "\"scale='if(gt(250, max(iw\\, ih)), iw, 2*floor(250/max(iw\\, ih)*iw/2))':'if(gt(250, max(iw\\, ih)), ih, 2*floor(250/max(iw\\, ih)*ih/2))'\"")
 	}
 	{
 		codec_profile := CodecProfile{
@@ -196,7 +196,7 @@ func TestTransform(t *testing.T) {
 		at.Equal(profile["-acodec"], "aac")
 		at.Equal(profile["-minrate"], "100k")
 		at.Equal(profile["-bufsize"], "100k")
-		at.Equal(profile["-vf"], "\"movie=water.png[wmo];[wmo][in]scale2ref=(main_w*0.100000):((320.000000/240.000000)*(main_w*0.100000))[wm][ino];[ino][wm]overlay=0.500000*main_w:0.500000*main_h[wmimage];[wmimage]scale='if(gt(250, max(iw\\, ih)), max(iw\\, ih), 2*floor(250/max(iw\\, ih)*iw/2))':'if(gt(250, max(iw\\, ih)), min(iw\\, ih), 2*floor(250/max(iw\\, ih)*ih/2))'[out]\"")
+		at.Equal(profile["-vf"], "\"movie=water.png[wmo];[wmo][in]scale2ref=(main_w*0.100000):((320.000000/240.000000)*(main_w*0.100000))[wm][ino];[ino][wm]overlay=0.500000*main_w:0.500000*main_h[wmimage];[wmimage]scale='if(gt(250, max(iw\\, ih)), iw, 2*floor(250/max(iw\\, ih)*iw/2))':'if(gt(250, max(iw\\, ih)), ih, 2*floor(250/max(iw\\, ih)*ih/2))'[out]\"")
 		at.Equal(profile["-maxrate"], "100k")
 		at.Equal(profile["-crf"], "30")
 		at.Equal(profile["-ac"], "1")

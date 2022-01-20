@@ -170,11 +170,11 @@ func TransformVideo(codecProfile CodecProfile) (args map[string]string, err erro
 		}
 
 		if uselongside { //若指定视频长边大于原视频长边，则使用原视频长边进行转码
-			scale = fmt.Sprintf("scale='if(gt(%s, max(iw\\, ih)), max(iw\\, ih), 2*floor(%s/max(iw\\, ih)*iw/2))':'if(gt(%s, max(iw\\, ih)), min(iw\\, ih), 2*floor(%s/max(iw\\, ih)*ih/2))'", longside, longside, longside, longside)
+			scale = fmt.Sprintf("scale='if(gt(%s, max(iw\\, ih)), iw, 2*floor(%s/max(iw\\, ih)*iw/2))':'if(gt(%s, max(iw\\, ih)), ih, 2*floor(%s/max(iw\\, ih)*ih/2))'", longside, longside, longside, longside)
 		} else if useshortside { //若指定视频短边大于原视频短边，则使用原视频短边进行转码
-			scale = fmt.Sprintf("scale='if(gt(%s, min(iw\\, ih)), max(iw\\, ih), 2*floor(%s/min(iw\\, ih)*iw/2))':'if(gt(%s, min(iw\\, ih)), max(iw\\, ih), 2*floor(%s/min(iw\\, ih)*ih/2))'", shortside, shortside, shortside, shortside)
+			scale = fmt.Sprintf("scale='if(gt(%s, min(iw\\, ih)), iw, 2*floor(%s/min(iw\\, ih)*iw/2))':'if(gt(%s, min(iw\\, ih)), ih, 2*floor(%s/min(iw\\, ih)*ih/2))'", shortside, shortside, shortside, shortside)
 		} else {
-			scale = fmt.Sprintf("scale='if(gt(2*floor(%s*max(iw\\,ih)/(min(iw\\,ih)*2))\\,%s)\\,2*floor(%s*(iw/2)/max(iw\\,ih))\\,2*floor(%s*(iw/2)/min(iw\\,ih)))':'if(gt(2*floor(%s*max(iw\\,ih)/(min(iw\\,ih)*2))\\,%s)\\,2*floor(%s*(ih/2)/max(iw\\,ih))\\,2*floor(%s*(ih/2)/min(iw\\,ih)))'", shortside, longside, longside, shortside, shortside, longside, longside, shortside)
+			scale = fmt.Sprintf("scale='if(gt(iw\\,ih), %s, %s)':'if(gt(iw\\,ih), %s, %s)'", longside, shortside, shortside, longside)
 		}
 	} else { // 使用分辨率
 		width := ""
