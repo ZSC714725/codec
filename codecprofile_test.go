@@ -64,20 +64,12 @@ func TestTransform(t *testing.T) {
 		}
 
 		watermark := WatermarkProfile{}
-		profile, err := Transform(codec_profile, watermark)
-		at.Nil(err)
-		at.Equal(len(profile), 8)
-		at.Equal(profile["-vcodec"], "copy")
-		at.Equal(profile["-r"], "30")
-		at.Equal(profile["-force_key_frames"], "\"expr:gte(t,n_forced*10)\"")
-		at.Equal(profile["-bufsize"], "100k")
-		at.Equal(profile["-maxrate"], "100k")
-		at.Equal(profile["-minrate"], "100k")
-		at.Equal(profile["-crf"], "30")
-		at.Equal(profile["-an"], "")
+		_, err := Transform(codec_profile, watermark)
+		at.NotNil(err)
 	}
 	{
 		codec_profile := CodecProfile{
+			Vcodec:           "libx264",
 			VideoFrameRate:   30,
 			KeyframeInterval: 10,
 			AudioVideoType:   1,
@@ -94,7 +86,7 @@ func TestTransform(t *testing.T) {
 		profile, err := Transform(codec_profile, watermark)
 		at.Nil(err)
 		at.Equal(len(profile), 8)
-		at.Equal(profile["-vcodec"], "copy")
+		at.Equal(profile["-vcodec"], "libx264")
 		at.Equal(profile["-r"], "30")
 		at.Equal(profile["-force_key_frames"], "\"expr:gte(t,n_forced*10)\"")
 		at.Equal(profile["-bufsize"], "100k")
@@ -118,10 +110,29 @@ func TestTransform(t *testing.T) {
 		}
 
 		watermark := WatermarkProfile{}
+		_, err := Transform(codec_profile, watermark)
+		at.NotNil(err)
+	}
+	{
+		codec_profile := CodecProfile{
+			VideoFrameRate:   30,
+			KeyframeInterval: 10,
+			AudioVideoType:   2,
+			Acodec:           "aac",
+			Ac:               1,
+			Ab:               128,
+			Ar:               8000,
+			BufSize:          100,
+			MaxRate:          100,
+			MinRate:          100,
+			Crf:              30,
+		}
+
+		watermark := WatermarkProfile{}
 		profile, err := Transform(codec_profile, watermark)
 		at.Nil(err)
 		at.Equal(len(profile), 5)
-		at.Equal(profile["-acodec"], "copy")
+		at.Equal(profile["-acodec"], "aac")
 		at.Equal(profile["-vn"], "")
 		at.Equal(profile["-b:a"], "128k")
 		at.Equal(profile["-ac"], "1")
@@ -154,7 +165,7 @@ func TestTransform(t *testing.T) {
 		at.Equal(profile["-maxrate"], "100k")
 		at.Equal(profile["-minrate"], "100k")
 		at.Equal(profile["-crf"], "30")
-		at.Equal(profile["-vn"], "")
+		at.Equal(profile["-an"], "")
 		at.Equal(profile["-vf"], "\"scale='if(gt(250, max(iw\\, ih)), iw, 2*floor(250/max(iw\\, ih)*iw/2))':'if(gt(250, max(iw\\, ih)), ih, 2*floor(250/max(iw\\, ih)*ih/2))'\"")
 	}
 	{
@@ -206,9 +217,11 @@ func TestTransform(t *testing.T) {
 	}
 	{
 		codec_profile := CodecProfile{
+			Vcodec:           "libx264",
 			VideoFrameRate:   30,
 			KeyframeInterval: 10,
 			AudioVideoType:   0,
+			Acodec:           "aac",
 			Ac:               1,
 			Ab:               128,
 			Ar:               8000,
@@ -223,10 +236,10 @@ func TestTransform(t *testing.T) {
 		profile, err := Transform(codec_profile, watermark)
 		at.Nil(err)
 		at.Equal(len(profile), 11)
-		at.Equal(profile["-vcodec"], "copy")
+		at.Equal(profile["-vcodec"], "libx264")
 		at.Equal(profile["-b:a"], "128k")
 		at.Equal(profile["-force_key_frames"], "\"expr:gte(t,n_forced*10)\"")
-		at.Equal(profile["-acodec"], "copy")
+		at.Equal(profile["-acodec"], "aac")
 		at.Equal(profile["-minrate"], "100k")
 		at.Equal(profile["-bufsize"], "100k")
 		at.Equal(profile["-maxrate"], "100k")

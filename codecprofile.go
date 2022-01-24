@@ -134,6 +134,14 @@ func TransformVideo(codecProfile CodecProfile) (args map[string]string, err erro
 		return nil, err
 	}
 
+	if codecProfile.Vcodec == "" {
+		if codecProfile.VideoLongSide > 0 || codecProfile.VideoShortSide > 0 || codecProfile.VideoWidth > 0 || codecProfile.VideoHigh > 0 ||
+			codecProfile.VideoFrameRate > 0 || codecProfile.Crf > 0 || codecProfile.Preset != "" {
+			err = fmt.Errorf("invalid Vcodec, please set video encoder")
+			return nil, err
+		}
+	}
+
 	videocodecargs := make(map[string]string)
 
 	// 设置视频编码器
@@ -276,6 +284,13 @@ func TransformAudio(codecProfile CodecProfile) (args map[string]string, err erro
 		return nil, err
 	}
 
+	if codecProfile.Acodec == "" {
+		if codecProfile.Ar > 0 || codecProfile.Ac > 0 {
+			err = fmt.Errorf("invalid Acodec, please set audio encoder")
+			return nil, err
+		}
+	}
+
 	audiocodecargs := make(map[string]string)
 
 	// 设置音频编码器
@@ -317,7 +332,7 @@ func Transformwatermark(watermarkProfile WatermarkProfile, videoargs map[string]
 	if watermarkProfile.Image != "" {
 		if videoargs["-vcodec"] == "copy" {
 			// 水印功能需要编码器重新编码
-			err = fmt.Errorf("invalid Vcodec")
+			err = fmt.Errorf("invalid Vcodec, please set video encoder")
 			return nil, err
 		}
 
